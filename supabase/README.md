@@ -1,0 +1,1 @@
+-- Schema wurde per Migration init_clarity_check im Supabase-Projekt olttbzvgvkhmnubfcjwl angelegt.
