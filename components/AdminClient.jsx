@@ -39,19 +39,34 @@ export function CreateWave() {
   const [err, setErr] = useState(null);
   const [busy, setBusy] = useState(false);
   const [ack, setAck] = useState(false);
+  const [history, setHistory] = useState([]);
+  const [target, setTarget] = useState({});
   const router = useRouter();
   const check = checkStructure(rows);
+  const change = (next) => { setHistory([...history, rows].slice(-20)); setRows(next); setAck(false); };
+  const undo = () => { if (!history.length) return; setRows(history[history.length - 1]); setHistory(history.slice(0, -1)); setAck(false); };
   const warns = check.issues.filter((i) => i.kind === "warn");
   const set = (i, k, v) => setRows(rows.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
   const clean = rows.filter((r) => r.name.trim());
   const idxMap = rows.map((r, i) => (r.name.trim() ? i : -1)).filter((i) => i >= 0);
 
-  function merge(m) {
-    const a = rows[idxMap[m.from]], b = rows[idxMap[m.into]];
+  // Zusammenlegen: Quelle (Index in clean) in Ziel (Index in clean)
+  function merge(fromClean, intoClean) {
+    const fi = idxMap[fromClean], ii = idxMap[intoClean];
+    if (fi == null || ii == null || fi === ii) return;
+    const a = rows[fi], b = rows[ii];
     const leader = [b.leader, a.leader].map((x) => x.trim()).filter(Boolean).join(" und ");
     const merged = { area: b.area, name: `${b.name.trim()} und ${a.name.trim()}`, leader, headcount: String((Number(a.headcount) || 0) + (Number(b.headcount) || 0)) };
-    setRows(rows.map((r, j) => (j === idxMap[m.into] ? merged : r)).filter((_, j) => j !== idxMap[m.from]));
-    setAck(false);
+    change(rows.map((r, j) => (j === ii ? merged : r)).filter((_, j) => j !== fi));
+    setTarget({});
+  }
+  // Mögliche Partner: zuerst gleicher Bereich, dann alle anderen
+  function partners(fromClean) {
+    const a = clean[fromClean];
+    const list = clean.map((r, i) => ({ r, i })).filter((x) => x.i !== fromClean);
+    const same = list.filter((x) => (x.r.area || "").trim() === (a.area || "").trim());
+    const other = list.filter((x) => (x.r.area || "").trim() !== (a.area || "").trim());
+    return { same, other };
   }
 
   return (
@@ -81,7 +96,7 @@ export function CreateWave() {
                   <td><input type="text" value={r.name} onChange={(e) => set(i, "name", e.target.value)} placeholder="Innendienst" /></td>
                   <td><input type="text" value={r.leader} onChange={(e) => set(i, "leader", e.target.value)} placeholder="Maria Kern" /></td>
                   <td><input type="number" min="0" value={r.headcount} onChange={(e) => set(i, "headcount", e.target.value.replace(/\D/g, ""))} placeholder="9" /></td>
-                  <td><button type="button" className="x" aria-label="Zeile entfernen" onClick={() => setRows(rows.length > 1 ? rows.filter((_, j) => j !== i) : [EMPTY()])}>×</button></td>
+                  <td><button type="button" className="x" aria-label="Zeile entfernen" onClick={() => change(rows.length > 1 ? rows.filter((_, j) => j !== i) : [EMPTY()])}>×</button></td>
                 </tr>
               );
             })}
@@ -92,12 +107,13 @@ export function CreateWave() {
       <div className="row" style={{ marginTop: 10 }}>
         <button type="button" className="btn ghost small" onClick={() => setRows([...rows, { ...EMPTY(), area: rows[rows.length - 1]?.area || "" }])}>Zeile hinzufügen</button>
         <button type="button" className="btn ghost small" onClick={() => setPaste(paste == null ? "" : null)}>Aus Excel einfügen</button>
+        {history.length > 0 && <button type="button" className="btn ghost small" onClick={undo}>Rückgängig</button>}
       </div>
       {paste != null && (
         <div style={{ marginTop: 10 }}>
           <p className="small muted" style={{ margin: "0 0 4px" }}>Spalten aus Excel kopieren und hier einfügen: Bereich, Team, Führungskraft, Kopfzahl. Ersetzt die Tabelle.</p>
           <textarea value={paste} onChange={(e) => setPaste(e.target.value)} placeholder={"Vertrieb\tInnendienst\tMaria Kern\t9\nVertrieb\tAußendienst\tJonas Berg\t7"} />
-          <p><button type="button" className="btn small" onClick={() => { const p = parseRows(paste); if (p.length) { setRows(p); setPaste(null); setAck(false); } }}>Übernehmen</button></p>
+          <p><button type="button" className="btn small" onClick={() => { const p = parseRows(paste); if (p.length) { change(p); setPaste(null); } }}>Übernehmen</button></p>
         </div>
       )}
 
@@ -105,7 +121,24 @@ export function CreateWave() {
         <div className="check">
           <p className="small" style={{ margin: 0 }}><strong>Prüfung:</strong> {check.summary.teams} Teams{check.summary.areas >= 2 ? ` in ${check.summary.areas} Bereichen` : ""}, davon {check.summary.visibleTeams} einzeln sichtbar{check.summary.areas >= 2 ? `, ${check.summary.visibleAreas} Bereiche sichtbar` : ""}, bei vollem Rücklauf · {check.summary.leaders + 1} Soll-Links</p>
           {check.issues.map((it, k) => (
-            <p key={k} className={"small issue " + it.kind}>{it.text}{it.merge && <> <button type="button" className="linkbtn" onClick={() => merge(it.merge)}>{it.merge.label}</button></>}</p>
+            <div key={k} className={"small issue " + it.kind}>
+              <span>{it.text}</span>
+              {it.merge && (() => {
+                const from = it.merge.from;
+                const { same, other } = partners(from);
+                const sel = target[from] ?? String(it.merge.into);
+                return (
+                  <span className="mergebox">
+                    Zusammenlegen mit
+                    <select value={sel} onChange={(e) => setTarget({ ...target, [from]: e.target.value })}>
+                      {same.length > 0 && <optgroup label={clean[from].area?.trim() || "Gleicher Bereich"}>{same.map((x) => <option key={x.i} value={x.i}>{x.r.name.trim()}{x.r.headcount ? ` (${x.r.headcount})` : ""}</option>)}</optgroup>}
+                      {other.length > 0 && <optgroup label="Andere Bereiche">{other.map((x) => <option key={x.i} value={x.i}>{x.r.name.trim()}{x.r.headcount ? ` (${x.r.headcount})` : ""}</option>)}</optgroup>}
+                    </select>
+                    <button type="button" className="btn ghost small" onClick={() => merge(from, Number(sel))}>Zusammenlegen</button>
+                  </span>
+                );
+              })()}
+            </div>
           ))}
           {warns.length > 0 && (
             <label className="small" style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6 }}>

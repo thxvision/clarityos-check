@@ -79,3 +79,6 @@ details summary { cursor: pointer; font-weight: 600; }
 .linkbtn { border: 0; background: none; padding: 0; font: inherit; color: var(--ink); text-decoration: underline; cursor: pointer; }
 .area-h { margin: 18px 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
 .linkrow { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.issue { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.mergebox { display: inline-flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.mergebox select { font: inherit; font-size: 14px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
