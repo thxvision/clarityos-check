@@ -64,6 +64,10 @@ export default async function WavePage({ params }) {
   const r = analyzeWave(data);
   const cl = data.clusters;
   const clByField = Object.fromEntries((cl?.fields || []).map((f) => [f.key, f]));
+  const teamsByArea = {};
+  for (const t of data.teams || []) (teamsByArea[t.area || ""] = teamsByArea[t.area || ""] || []).push(t);
+  const hasAreas = Object.keys(teamsByArea).some((a) => a);
+  const sollByTeam = Object.fromEntries((data.soll || []).filter((x) => x.team_id).map((x) => [x.team_id, true]));
   const perTeam = Object.fromEntries((data.teams || []).map((t) => [t.id, (data.responses || []).filter((x) => x.team_id === t.id).length]));
 
   return (
@@ -73,15 +77,30 @@ export default async function WavePage({ params }) {
 
       <details className="card">
         <summary>Links zum Verteilen</summary>
-        <h3>Soll-Setzung Führung (jede Führungskraft einzeln)</h3>
+        <h3>Gesamt-Soll Geschäftsführung</h3>
+        <p className="small muted" style={{ marginTop: 0 }}>Für GF und Führungskreis, jede Person einzeln. Daran wird die ganze Organisation gemessen.</p>
         <CopyLink url={`${base}/f/${data.wave.lead_token}`} />
-        <h3>Teams</h3>
-        {data.teams.map((t) => (<div key={t.id} style={{ marginBottom: 10 }}><div className="small"><strong>{t.name}</strong>{t.headcount ? ` · ${t.headcount} Personen` : ""} · {perTeam[t.id]} Antworten</div><CopyLink url={`${base}/t/${t.token}`} /></div>))}
+        {Object.entries(teamsByArea).map(([area, list]) => (
+          <div key={area || "_"}>
+            <p className="area-h">{area || (hasAreas ? "Ohne Bereich" : "Teams")}</p>
+            {list.map((t) => (
+              <div key={t.id} className="linkrow">
+                <div className="small"><strong>{t.name}</strong>{t.headcount ? ` · ${t.headcount} Personen` : ""} · {perTeam[t.id]} Antworten{t.headcount && t.headcount < 5 ? " · unter 5, nie einzeln sichtbar" : ""}</div>
+                <div className="small muted">Team-Link (anonym)</div>
+                <CopyLink url={`${base}/t/${t.token}`} />
+                {t.leader_token && (<>
+                  <div className="small muted">Soll-Link Teamleitung{t.leader_name ? `: ${t.leader_name}` : ""} · {sollByTeam[t.id] ? "Soll gesetzt" : "Soll offen"}</div>
+                  <CopyLink url={`${base}/f/${t.leader_token}`} />
+                </>)}
+              </div>
+            ))}
+          </div>
+        ))}
       </details>
 
       <div className="kpis">
         <div className="kpi"><div className="v">{r.n}</div><div className="l">Antworten (Ergebnisse ab {r.minN})</div></div>
-        <div className="kpi"><div className="v">{r.leaders}</div><div className="l">Soll-Setzungen der Führung</div></div>
+        <div className="kpi"><div className="v">{r.leaders}</div><div className="l">Soll-Setzungen ({r.orgLeaders} Gesamt-Soll, {r.leaders - r.orgLeaders} Teamleitungen)</div></div>
       </div>
 
       {!r.org && (
@@ -124,17 +143,44 @@ export default async function WavePage({ params }) {
             </div>
           ))}
 
+          {r.areas.length > 0 && (
+            <>
+              <h2>Bereiche im Vergleich</h2>
+              <div className="card" style={{ overflowX: "auto" }}>
+                <table>
+                  <thead><tr><th>Bereich</th><th>Antworten</th><th>Klarheitsquote</th><th>Gefühlt</th><th>Scheinklarheit</th><th>Bruchstellen</th></tr></thead>
+                  <tbody>{r.areas.map((a) => (<tr key={a.name}><td><strong>{a.name}</strong></td><td>{a.n}</td><td>{pct(a.klarheitsquote)}</td><td>{a.gefuehlt ?? "–"}</td><td>{pct(a.scheinklarheit)}</td><td>{a.bruch}</td></tr>))}</tbody>
+                </table>
+              </div>
+              {r.hiddenAreas.length > 0 && <p className="small muted">Nicht einzeln ausgewiesen: {r.hiddenAreas.join(", ")}.</p>}
+            </>
+          )}
+
+          <h2>Teamleitung und Gesamt-Soll</h2>
+          {r.orgLeaders === 0 && <p className="small muted">Noch kein Gesamt-Soll der Geschäftsführung. Ohne es lässt sich nicht prüfen, ob Teamleitungen dieselben Regeln setzen.</p>}
+          {r.orgLeaders > 0 && r.leaderGaps.length === 0 && <p className="small muted">Keine Abweichungen, soweit Teamleitungen ihr Soll gesetzt haben.</p>}
+          {r.leaderGaps.length > 0 && (
+            <div className="card" style={{ overflowX: "auto" }}>
+              <p className="small" style={{ marginTop: 0 }}>{r.leaderGaps.length} Abweichungen bei {new Set(r.leaderGaps.map((g) => g.team)).size} Teamleitungen. Hier sagt die Teamleitung etwas anderes als die Geschäftsführung. Ihr Team kann die Gesamtregel kaum kennen.</p>
+              <table>
+                <thead><tr><th>Teamleitung</th><th>Frage</th><th>Gesamt-Soll</th><th>Teamleitung sagt</th></tr></thead>
+                <tbody>{r.leaderGaps.map((g, k) => (<tr key={k}><td>{g.leader}<div className="small muted">{g.area ? g.area + " · " : ""}{g.team}</div></td><td className="small">{g.id} · {g.q}</td><td className="small">{g.org}</td><td className="small"><strong>{g.own}</strong></td></tr>))}</tbody>
+              </table>
+            </div>
+          )}
+
           {r.teams.length > 0 && (
             <>
               <h2>Teams im Vergleich</h2>
               <div className="card" style={{ overflowX: "auto" }}>
                 <table>
-                  <thead><tr><th>Frage</th>{r.teams.map((t) => <th key={t.id}>{t.name} (n={t.n})</th>)}</tr></thead>
+                  <thead><tr><th>Frage</th>{r.teams.map((t) => <th key={t.id}>{t.area ? <span className="muted">{t.area} · </span> : null}{t.name} (n={t.n})</th>)}</tr></thead>
                   <tbody>
                     {ITEMS.map((i) => (
                       <tr key={i.id}><td className="small">{i.id} · {i.q.slice(0, 70)}{i.q.length > 70 ? "…" : ""}</td>{r.teams.map((t) => <td key={t.id}><Tag s={t.items[i.id].status} /></td>)}</tr>
                     ))}
                     <tr><td><strong>Klarheitsquote</strong></td>{r.teams.map((t) => <td key={t.id}><strong>{pct(t.klarheitsquote)}</strong></td>)}</tr>
+                    <tr><td><strong>Regeln geteilt mit eigener Teamleitung</strong></td>{r.teams.map((t) => <td key={t.id}>{t.ownLeader ? `${t.ownLeader.shared} von ${t.ownLeader.total}` : "Soll offen"}</td>)}</tr>
                   </tbody>
                 </table>
               </div>

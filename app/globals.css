@@ -66,3 +66,16 @@ code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-
 .err { color: var(--red); }
 details summary { cursor: pointer; font-weight: 600; }
 .quote { border-left: 2px solid var(--line); padding-left: 12px; color: #333; margin: 6px 0; }
+.struct { font-size: 14px; min-width: 620px; }
+.struct td { padding: 4px; border-bottom: 0; }
+.struct input[type=text], .struct input[type=number] { padding: 8px 10px; font-size: 15px; }
+.struct input[type=number] { width: 100%; font: inherit; border: 1px solid var(--line); border-radius: 10px; }
+.struct tr.warnrow input { border-color: var(--orange); background: #fdf4ea; }
+.x { border: 0; background: transparent; font-size: 20px; color: var(--muted); cursor: pointer; }
+.check { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-top: 14px; background: #fcfbf8; }
+.issue { margin: 6px 0 0; padding-left: 10px; border-left: 3px solid var(--line); }
+.issue.warn { border-color: var(--orange); }
+.issue.error { border-color: var(--red); color: var(--red); }
+.linkbtn { border: 0; background: none; padding: 0; font: inherit; color: var(--ink); text-decoration: underline; cursor: pointer; }
+.area-h { margin: 18px 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.linkrow { padding: 10px 0; border-bottom: 1px solid var(--line); }

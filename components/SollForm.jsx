@@ -6,7 +6,8 @@ const FACTS = ITEMS.filter((i) => i.type === "F");
 
 export default function SollForm({ token, info }) {
   const [answers, setAnswers] = useState({});
-  const [label, setLabel] = useState("");
+  const isTeam = info.scope === "team";
+  const [label, setLabel] = useState(isTeam ? info.leader || "" : "");
   const [done, setDone] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState(null);
@@ -25,13 +26,14 @@ export default function SollForm({ token, info }) {
 
   return (
     <>
-      <p className="muted small">{info.org} · {info.wave} · Soll-Setzung Führung</p>
-      <h1>Was soll bei euch gelten?</h1>
+      <p className="muted small">{info.org} · {info.wave} · {isTeam ? `Soll-Setzung Teamleitung · ${info.area ? info.area + " · " : ""}${info.team}` : "Gesamt-Soll Geschäftsführung"}</p>
+      <h1>{isTeam ? `Was soll in ${info.team} gelten?` : "Was soll bei euch gelten?"}</h1>
       <p className="lead">Beantworte jede Frage so, wie es bei euch <strong>gelten soll</strong>, nicht wie es gerade gelebt wird. Jede Führungskraft füllt das einzeln aus, ohne Absprache.</p>
+      {isTeam && <p className="small muted">Deine Antworten werden mit dem Gesamt-Soll der Geschäftsführung und mit den Antworten deines Teams verglichen. Erneutes Absenden ersetzt deine bisherigen Antworten.</p>}
       <div className="notice small">Die Soll-Setzung ist keine anonyme Befragung, sondern ein Führungsakt. Einzelne Soll-Antworten sieht nur der Führungskreis. Weichen eure Antworten voneinander ab, ist das der erste Befund.</div>
       <div className="card">
         <p className="q">Kürzel oder Rolle (freiwillig)</p>
-        <input type="text" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="z. B. GF, COO, Leitung Vertrieb" maxLength={40} />
+        <input type="text" value={label} onChange={(e) => setLabel(e.target.value)} placeholder={isTeam ? "Name" : "z. B. GF, COO, Leitung Vertrieb"} maxLength={40} />
       </div>
       {FIELDS.map((f) => {
         const its = FACTS.filter((i) => i.field === f.key);
